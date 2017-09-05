@@ -46,6 +46,7 @@ Purchases.sync().then(function () {
 });
 
 /* ******** CUSTOMERS ******** */
+
 // get request to display list of current items for customer
 app.get('/vending/customer/items', function (req, res) {
   Product.findAll().then(function(product){
@@ -111,10 +112,10 @@ app.get('/vending/vendor/money', function (req, res) {
   Purchases.findAll().then(function(purchases){
     let totalMoney = 0;
     for ( let i = 0; i < purchases.length; i++ ) {
-      totalMoney += purchases[i].cost
+      totalMoney += parseFloat(purchases[i].cost)
     }
     res.json({
-      'machine_total': totalMoney,
+      'machine_total': parseFloat(totalMoney),
     })
   });
 });
@@ -140,6 +141,29 @@ app.post('/vending/vendor/items', function (req, res) {
       'description': req.body.description,
       'cost': parseFloat(req.body.cost),
       'quantity': parseInt(req.body.quantity),
+    });
+  })
+});
+
+// put request for vendor to update description, quantity, cost
+app.put('/vending/vendor/items/:productId', function(req, res) {
+  const id = parseInt(req.params.productId);
+
+  Product.update({
+    description: req.body.description,
+    cost: parseFloat(req.body.cost),
+    quantity: parseInt(req.body.quantity),
+  }, {
+    where: {
+      id: id,
+    }
+  }).then(function(products){
+    res.json({
+      'status': 'item successfully updated',
+      'name': products.name,
+      'description': products.description,
+      'cost': products.cost,
+      'quantity': products.quantity,
     });
   })
 });
