@@ -19,7 +19,7 @@ const Product = db.define('product', {
     quantity: { type: Sequelize.INTEGER, allowNull: false }
 });
 
-// sync schema
+// synch schema
 Product.sync().then(function () {
     console.log('product synched');
 
@@ -31,15 +31,29 @@ Product.sync().then(function () {
     // });
 });
 
+/* ******** PURCHASES SCHEMA ******** */
+
+// create schema
+const Purchases = db.define('purchases', {
+  name: { type: Sequelize.STRING(20), allowNull: false },
+  cost: { type: Sequelize.INTEGER, allowNull: false }
+})
+
+// synch schema
+
+Purchases.sync().then(function () {
+  console.log('purchases synched');
+});
+
 /* ******** CUSTOMERS ******** */
-// get route to display list of current items for customer
+// get request to display list of current items for customer
 app.get('/vending/customer/items', function (req, res) {
   Product.findAll().then(function(product){
     res.json(product);
   })
 });
 
-// post route for customer to purchase an item
+// post request for customer to purchase an item
 app.post('/vending/customer/:productId/purchases', function (req, res) {
   const id = parseInt(req.params.productId);
   const amountPaid = req.body.amountPaid;
@@ -49,7 +63,7 @@ app.post('/vending/customer/:productId/purchases', function (req, res) {
     id: id
     }
   }).then(function(product){
-    if ( product.cost <= amountPaid ) {
+    if ( product.cost <= amountPaid && product.quantity > 0 ) {
       changeOwed = amountPaid - product.cost
       let quantity = product.quantity
       Product.update({
@@ -68,7 +82,12 @@ app.post('/vending/customer/:productId/purchases', function (req, res) {
           'change_owed': changeOwed
         })
       })
-    } else {
+      // create a row in the purchase table for the item that was purchased
+      Purchases.create({
+        name: product.name,
+        cost: product.cost,
+      })
+    } else if ( product.cost >= amountPaid && product.quantity === 0 ){
       res.json({
         'status': 'error, not enough money',
         'product': id,
@@ -77,53 +96,55 @@ app.post('/vending/customer/:productId/purchases', function (req, res) {
         'amount_paid': amountPaid,
       });
     }
+  // if an item is not in the vending machine then the customer is not allowed to purchase it
   }).catch(function(product){
     res.json({
       'status': 'error, product not in vending machine',
     });
-  })
-  // if ( product.cost <= amountPaid ) {
-  //   changeOwed = amountPaid - product.cost
-  //   Product.update({
-  //     quantity: quantity - 1
-  //   }, {
-  //     where: {
-  //       id: id,
-  //     }
-  //   }).then(function(product){
-  //     res.json({
-  //       'status': 'item purchased',
-  //       'product': id,
-  //       'product_name': product.name,
-  //       'cost': product.cost,
-  //       'amount_paid': amountPaid,
-  //       'change_owed': change_owed
-  //     })
-  //   })
-  // } else {
-  //   Product.find({
-  //     where: {
-  //       id: id,
-  //     }
-  //   }).then(function(product){
-  //     res.json({
-  //       'status': 'error, not enough money',
-  //       'product': id,
-  //       'product_name': product.name,
-  //       'cost': product.cost,
-  //       'amount_paid': amountPaid,
-  //     });
-  //   }).catch(function(product){
-  //     res.json({
-  //       'status': 'error, product not in vending machine',
-  //     });
-  //   })
-  // }
-  // if item is not in the vending machine customer can't purchase it
+  });
 });
 
 /* ******** VENDORS ******** */
 
+// get request for vendors to see total amount of money in the machine
+app.get('/vending/vendor/money', function (req, res) {
+  Purchases.findAll().then(function(purchases){
+    let totalMoney = 0;
+    for ( let i = 0; i < purchases.length; i++ ) {
+      totalMoney += purchases[i].cost
+    }
+    res.json({
+      'machine_total': totalMoney,
+    })
+  });
+});
+
+// get request for vendors to see list of purchases
+app.get('/vending/vendor/purchases', function (req, res) {
+  Purchases.findAll().then(function(purchases) {
+    res.json(purchases);
+  })
+})
+
+// post request for vendors to add new item to list
+app.post('/vending/vendor/items', function (req, res) {
+  Product.create({
+    name: req.body.name,
+    description: req.body.description,
+    cost: parseFloat(req.body.cost),
+    quantity: parseInt(req.body.quantity),
+  }).then(function(products){
+    res.json({
+      'status': 'new product added',
+      'name': req.body.name,
+      'description': req.body.description,
+      'cost': parseFloat(req.body.cost),
+      'quantity': parseInt(req.body.quantity),
+    });
+  })
+});
+
+// put request for vendors to edit existing item
 app.listen(3000, function () {
   console.log('dont shake the machine');
 });
